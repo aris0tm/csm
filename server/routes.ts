@@ -30,25 +30,28 @@ export async function registerRoutes(
     try {
       const input = api.deployments.create.input.parse(req.body);
       
+      // Get settings for customization
+      const settings = await storage.getSettings();
+      const projectName = settings.find(s => s.key === "default_project_name")?.value || "cloud-deploy-demo";
+      
       // Generate the code
       const files = generateTerraformCode(input.provider, input.region, input.instanceSize);
       
-      // Write files to disk (as requested by user requirements)
+      // Write files to disk
       const baseDir = path.join(process.cwd(), "cloud-deploy");
-      
-      // Ensure clean state for the demo
-      if (fs.existsSync(baseDir)) {
-        fs.rmSync(baseDir, { recursive: true, force: true });
+      if (!fs.existsSync(baseDir)) {
+        fs.mkdirSync(baseDir, { recursive: true });
       }
-      fs.mkdirSync(baseDir, { recursive: true });
 
       // Create provider subdir
-      fs.mkdirSync(path.join(baseDir, input.provider), { recursive: true });
+      const providerDir = path.join(baseDir, input.provider);
+      if (!fs.existsSync(providerDir)) {
+        fs.mkdirSync(providerDir, { recursive: true });
+      }
 
       // Write all files
       Object.entries(files).forEach(([filepath, content]) => {
         const fullPath = path.join(baseDir, filepath);
-        // Ensure directory exists for nested files
         const dir = path.dirname(fullPath);
         if (!fs.existsSync(dir)) {
           fs.mkdirSync(dir, { recursive: true });
@@ -72,6 +75,25 @@ export async function registerRoutes(
       }
       throw err;
     }
+  });
+
+  app.delete(api.deployments.delete.path, async (req, res) => {
+    const success = await storage.deleteDeployment(Number(req.params.id));
+    if (!success) {
+      return res.status(404).json({ message: 'Deployment not found' });
+    }
+    res.status(204).send();
+  });
+
+  app.get(api.settings.list.path, async (req, res) => {
+    const settings = await storage.getSettings();
+    res.json(settings);
+  });
+
+  app.post(api.settings.update.path, async (req, res) => {
+    const input = api.settings.update.input.parse(req.body);
+    const setting = await storage.updateSetting(input);
+    res.json(setting);
   });
 
   // Seed data if empty

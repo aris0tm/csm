@@ -13,14 +13,24 @@ export const deployments = pgTable("deployments", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const settings = pgTable("settings", {
+  id: serial("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  value: text("value").notNull(),
+});
+
 export const insertDeploymentSchema = createInsertSchema(deployments).pick({
   provider: true,
   region: true,
   instanceSize: true,
 });
 
+export const insertSettingSchema = createInsertSchema(settings);
+
 export type InsertDeployment = z.infer<typeof insertDeploymentSchema>;
 export type Deployment = typeof deployments.$inferSelect;
+export type Setting = typeof settings.$inferSelect;
+export type InsertSetting = z.infer<typeof insertSettingSchema>;
 
 export type CreateDeploymentRequest = InsertDeployment;
 export type DeploymentResponse = Deployment;

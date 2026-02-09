@@ -1,12 +1,15 @@
 
 import { db } from "./db";
-import { deployments, type Deployment, type InsertDeployment } from "@shared/schema";
+import { deployments, settings, type Deployment, type InsertDeployment, type Setting, type InsertSetting } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface IStorage {
   getDeployments(): Promise<Deployment[]>;
   getDeployment(id: number): Promise<Deployment | undefined>;
   createDeployment(deployment: InsertDeployment & { generatedFiles: Record<string, string> }): Promise<Deployment>;
+  deleteDeployment(id: number): Promise<boolean>;
+  getSettings(): Promise<Setting[]>;
+  updateSetting(setting: InsertSetting): Promise<Setting>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -22,6 +25,26 @@ export class DatabaseStorage implements IStorage {
   async createDeployment(insertDeployment: InsertDeployment & { generatedFiles: Record<string, string> }): Promise<Deployment> {
     const [deployment] = await db.insert(deployments).values(insertDeployment).returning();
     return deployment;
+  }
+
+  async deleteDeployment(id: number): Promise<boolean> {
+    const result = await db.delete(deployments).where(eq(deployments.id, id)).returning();
+    return result.length > 0;
+  }
+
+  async getSettings(): Promise<Setting[]> {
+    return await db.select().from(settings);
+  }
+
+  async updateSetting(insertSetting: InsertSetting): Promise<Setting> {
+    const [existing] = await db.select().from(settings).where(eq(settings.key, insertSetting.key));
+    if (existing) {
+      const [updated] = await db.update(settings).set({ value: insertSetting.value }).where(eq(settings.key, insertSetting.key)).returning();
+      return updated;
+    } else {
+      const [created] = await db.insert(settings).values(insertSetting).returning();
+      return created;
+    }
   }
 }
 
